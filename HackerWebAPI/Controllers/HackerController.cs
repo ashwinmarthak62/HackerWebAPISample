@@ -1,12 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using HackerWebAPI.Interface;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Swashbuckle.AspNetCore.Annotations;
-using System.Data.SqlTypes;
-using System.Net;
-using System.Threading.Tasks;
 
 namespace HackerWebAPI.Controllers
 {
@@ -14,15 +8,13 @@ namespace HackerWebAPI.Controllers
     [ApiController]
     public class HackerController : ControllerBase
     {
-        private readonly HttpClient _httpclient;
-        private readonly IMemoryCache _cacheStory;
-        private const string CacheKey = "newstories";
-        private const string BaseURL = "https://hacker-news.firebaseio.com/v0/";
-        public HackerController(IHttpClientFactory httpClientFactory, IMemoryCache cacheStory)
+        private readonly IHackerNewsService _hackerNewsService;
+
+        public HackerController(IHackerNewsService hackerNewsService)
         {
-            _httpclient = httpClientFactory.CreateClient();
-            _cacheStory = cacheStory;
+            _hackerNewsService = hackerNewsService;
         }
+
         /// <summary>
         /// GetNewStories
         /// </summary>
@@ -37,37 +29,18 @@ namespace HackerWebAPI.Controllers
         {
             try
             {
-                List<int> newStoryIds;
-                if (!_cacheStory.TryGetValue(CacheKey, out newStoryIds))
-                {
-                    //Get new story ids
-                    var result = await _httpclient.GetStringAsync(BaseURL + "topstories.json?print=pretty");
-                    newStoryIds = JsonConvert.DeserializeObject<List<int>>(result);
-                    var cacheStoryOptions = new MemoryCacheEntryOptions()
-                        .SetSlidingExpiration(TimeSpan.FromMinutes(5));
-                    _cacheStory.Set(CacheKey, newStoryIds, cacheStoryOptions);
-                }
-                var pageIds = newStoryIds.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-                // new story ids pass to get story to fetch the details of the story 
-                var storyResult = pageIds.Select(async x =>
-                 {
-                     var getstory = await _httpclient.GetStringAsync(BaseURL + $"item/{x}.json?print=pretty");
-                     return JsonConvert.DeserializeObject<object>(getstory);
-                 });
-                var newstories = await Task.WhenAll(storyResult);
-
-                return Ok(new { Total = pageIds.Count, NewStories = newstories });
+                var (total, newStories) = await _hackerNewsService.GetNewStoriesAsync(page, pageSize);
+                return Ok(new NewStoriesResponse { Total = total, NewStories = newStories });
             }
-            catch (HttpRequestException httpEx)
+            catch (HttpRequestException)
             {
                 return StatusCode(503, "Error occurred while retrieving data from Hacker API.");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return StatusCode(500, "An unexpected error occurred.");
             }
         }
-
 
     }
 }

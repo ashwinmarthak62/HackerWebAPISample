@@ -1,3 +1,5 @@
+using HackerWebAPI.Interface;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -17,6 +19,7 @@ builder.Services.AddCors(options =>
                           .AllowAnyHeader()
                           .AllowCredentials());
 });
+builder.Services.AddScoped<IHackerNewsService, HackerNewsService>();
 
 var app = builder.Build();
 
